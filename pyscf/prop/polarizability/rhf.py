@@ -25,11 +25,13 @@ Non-relativistic static and dynamic polarizability and hyper-polarizability tens
 from functools import reduce
 from pyscf import numpy as np
 import numpy
+from pyscf import __config__
 from pyscf import lib
 from pyscf.lib import logger, ops
 from pyscf.scf import cphf
 from pyscf.scf import _response_functions  # noqa
 
+PYSCFAD = getattr(__config__, "pyscfad", False)
 
 def dipole(mf):
     return mf.dip_moment(mf.mol, mf.make_rdm1())
@@ -202,8 +204,6 @@ def cphf_with_freq(mf, mo_energy, mo_occ, h1, freq=0,
                    max_cycle=20, tol=1e-9, hermi=False, verbose=logger.WARN):
     # lib.krylov often fails, newton_krylov solver from relatively new scipy
     # library is needed.
-    import jax
-    #from scipy.optimize import newton_krylov
     log = logger.new_logger(verbose=verbose)
     t0 = (logger.process_clock(), logger.perf_counter())
 
@@ -256,8 +256,12 @@ def cphf_with_freq(mf, mo_energy, mo_occ, h1, freq=0,
         v = np.stack((v1vo, v1ov), axis=1)
         return v.reshape(nz,-1) #- rhs
 
-    #mo1 = newton_krylov(vind, mo1base, f_tol=tol)
-    mo1 = jax.scipy.sparse.linalg.gmres(vind, rhs, mo1base, tol=tol)[0]
+    if PYSCFAD:
+        from pyscf.scipy.sparse.linalg import gmres
+        mo1 = gmres(vind, rhs, mo1base, tol=tol)[0]
+    else:
+        from scipy.optimize import newton_krylov
+        mo1 = newton_krylov(vind, mo1base, f_tol=tol)
     mo1 = mo1.reshape(-1,2,nvir,nocc)
     log.timer('krylov solver in CPHF', *t0)
 
