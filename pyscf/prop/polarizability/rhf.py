@@ -257,11 +257,12 @@ def cphf_with_freq(mf, mo_energy, mo_occ, h1, freq=0,
         return v.reshape(nz,-1) #- rhs
 
     if PYSCFAD:
-        from pyscf.scipy.sparse.linalg import gmres
-        mo1 = gmres(vind, rhs, mo1base, tol=tol)[0]
+        from pyscf import scipy
+        mo1 = scipy.sparse.linalg.gmres(vind, rhs, mo1base, tol=tol)[0]
     else:
         from scipy.optimize import newton_krylov
-        mo1 = newton_krylov(vind, mo1base, f_tol=tol)
+        func = lambda x: vind(x) - rhs
+        mo1 = newton_krylov(func, mo1base, f_tol=tol)
     mo1 = mo1.reshape(-1,2,nvir,nocc)
     log.timer('krylov solver in CPHF', *t0)
 
